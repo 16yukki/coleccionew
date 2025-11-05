@@ -1,0 +1,92 @@
+/* Fuente: poner link en public/index.html (ver abajo) */
+:root {
+  --primary: #007bff;
+  --bg: #f7f9fb;
+  --card: #ffffff;
+  --text: #222;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: var(--bg);
+  margin: 0;
+  color: var(--text);
+}
+
+.main-header {
+  text-align: center;
+  padding: 28px 0 8px;
+}
+
+.brand {
+  font-weight: 600;
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+.brand span {
+  color: var(--primary);
+}
+
+/* Contenedor del login */
+.login-container {
+  max-width: 420px;
+  margin: 40px auto;
+  padding: 28px;
+  background: var(--card);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.06);
+  text-align: left;
+}
+
+#form-title {
+  margin: 0 0 6px;
+  font-size: 1.6rem;
+}
+
+#form-subtitle {
+  margin: 0 0 18px;
+  color: #556;
+  font-size: 0.95rem;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-input {
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 1rem;
+  outline: none;
+}
+
+.login-input:focus {
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.08);
+  border-color: var(--primary);
+}
+
+.primary-btn {
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary-btn[disabled] {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.error-message {
+  margin-top: 12px;
+  min-height: 1.2em; /* evita salto de layout cuando aparece el error */
+  color: #b91c1c;
+  font-size: 0.95rem;
+}
