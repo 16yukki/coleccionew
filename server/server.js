@@ -13,11 +13,7 @@ const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
   database: 'coleccionew',
-<<<<<<< HEAD
-  password: 'BBss2211', // ¡RECUERDA PONER TU CONTRASEÑA REAL AQUÍ!
-=======
   password: '12345678', // ¡RECUERDA PONER TU CONTRASEÑA REAL AQUÍ!
->>>>>>> 790e021 (actualizacion del login)
   port: 5432,
 });
 

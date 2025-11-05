@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 /* Fuente: poner link en public/index.html (ver abajo) */
 :root {
   --primary: #007bff;
@@ -90,7 +90,7 @@ body {
   min-height: 1.2em; /* evita salto de layout cuando aparece el error */
   color: #b91c1c;
   font-size: 0.95rem;
-=======
+}
 /* Contenedor principal */
 .login-container {
   display: flex;
@@ -161,9 +161,6 @@ h2 {
   margin-bottom: 0.5rem;
 }
 
-h2 span {
-  font-weight: 700;
-}
 
 /* Inputs */
 input {
@@ -218,6 +215,4 @@ input:focus {
   .scene {
     width: 90%;
     height: 580px;
-  }
->>>>>>> 790e021 (actualizacion del login)
-}
+  }}
