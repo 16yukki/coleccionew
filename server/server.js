@@ -2,7 +2,9 @@
 const express = require('express');
 const { Pool } = require('pg');
 // const bcrypt = require('bcrypt'); // <-- ¡ELIMINADO!
-const cors = require('cors'); // Importamos cors (lo necesitarás para el frontend)
+const cors = require('cors');
+const multer = require('multer'); 
+const path = require('path');     
 
 // 2. Inicializar la aplicación
 const app = express();
@@ -33,18 +35,29 @@ async function testDbConnection() {
 
 // 4. Middleware
 app.use(express.json()); 
-app.use(cors()); // Habilitamos CORS para el frontend
+app.use(cors()); 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+
+// --- Configuración de Multer ---
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/'); 
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + file.originalname);
+  }
+});
+const upload = multer({ storage: storage });
+
 
 // 5. Rutas de la API (Usuarios)
 app.post('/api/registro', async (req, res) => {
   try {
     const { nombre_usuario, email, password } = req.body;
     
-    // --- ¡CAMBIO! Ya no encriptamos la contraseña ---
-    // const salt = await bcrypt.genSalt(10);
-    // const contraseña_hash = await bcrypt.hash(password, salt); 
-    
-    // --- ¡CAMBIO! Usamos la columna "contraseña" y guardamos el password en texto plano ---
+    // --- SIN BCRYPT ---
+    // Usamos la columna "contraseña" y guardamos el password en texto plano
     const nuevoUsuarioQuery = `
       INSERT INTO usuarios (nombre_usuario, email, contraseña) 
       VALUES ($1, $2, $3) 
@@ -71,7 +84,6 @@ app.post('/api/registro', async (req, res) => {
   }
 });
 
-// --- ¡RUTA DE LOGIN ACTUALIZADA! ---
 app.post('/api/login', async (req, res) => {
     console.log("Petición recibida en /api/login");
     try {
@@ -87,7 +99,7 @@ app.post('/api/login', async (req, res) => {
         const usuario = usuarioResult.rows[0];
 
         // 2. Comparar la contraseña
-        // --- ¡CAMBIO! Comparamos el texto plano directamente ---
+        // --- SIN BCRYPT --- Comparamos el texto plano directamente
         const esValida = (password === usuario.contraseña); 
         if (!esValida) {
             return res.status(400).json({ message: "Credenciales inválidas" });
@@ -119,7 +131,6 @@ app.post('/api/login', async (req, res) => {
 
 // 6. Rutas de la API (Catálogos)
 app.post('/api/catalogos', async (req, res) => {
-  // ... (código existente) ...
   try {
     const { nombre, descripcion, id_coleccion_fk } = req.body;
     const nuevoCatalogoQuery = `
@@ -139,7 +150,6 @@ app.post('/api/catalogos', async (req, res) => {
 });
 
 app.get('/api/catalogos/:id_coleccion', async (req, res) => {
-  // ... (código existente) ...
   try {
     const { id_coleccion } = req.params;
     const obtenerCatalogosQuery = `
@@ -156,42 +166,59 @@ app.get('/api/catalogos/:id_coleccion', async (req, res) => {
 
 // 7. Rutas de la API (Objetos)
 app.post('/api/objetos', async (req, res) => {
-  // ... (código existente) ...
+  console.log("Petición recibida en /api/objetos");
   try {
-    const { nombre, tipo, anio, precio, estado, notas, id_catalogo_fk } = req.body;
-    const nuevoCatalogoQuery = `
+    const { nombre, tipo, anio, precio, estado, notas, id_catalogo_fk, fotoUrl } = req.body;
+    const nuevoObjetoQuery = `
             INSERT INTO objetos (nombre, tipo, anio, precio, estado, notas, id_catalogo_fk)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *;
         `;
-    const nuevoCatalogoResult = await pool.query(nuevoCatalogoQuery, [nombre, tipo, anio, precio, estado, notas, id_catalogo_fk]);
+    const nuevoObjetoResult = await pool.query(nuevoObjetoQuery, [nombre, tipo, anio, precio, estado, notas, id_catalogo_fk]);
+    const objetoCreado = nuevoObjetoResult.rows[0];
+    if (fotoUrl) {
+      console.log(`Guardando foto ${fotoUrl} para el objeto ID: ${objetoCreado.id_objeto}`);
+      const nuevaFotoQuery = `
+        INSERT INTO fotos (url, es_principal, id_objeto_fk)
+        VALUES ($1, $2, $3);
+      `;
+      await pool.query(nuevaFotoQuery, [fotoUrl, true, objetoCreado.id_objeto]);
+    }
     res.status(201).json({
-      message: "Objeto agregado exitosamente",
-      objeto: nuevoCatalogoResult.rows[0]
+      message: "Objeto y foto agregados exitosamente",
+      objeto: objetoCreado
     });
   } catch (err) {
     console.error("--- ERROR DETALLADO AL AGREGAR OBJETO ---", err);
+    console.error(err);
     res.status(500).send("Error en el servidor al agregar el objeto");
   }
 });
 
 app.get('/api/objetos/:id_catalogo', async (req, res) => {
-  // ... (código existente) ...
-  try {
-    const { id_catalogo } = req.params;
-    const obtenerObjetosQuery = `
-            SELECT * FROM objetos WHERE id_catalogo_fk = $1;
+    console.log("Petición GET recibida en /api/objetos/:id_catalogo");
+    try {
+        const { id_catalogo } = req.params;
+        
+        const obtenerObjetosQuery = `
+            SELECT o.*, f.url as foto_url
+            FROM objetos o
+            LEFT JOIN fotos f ON o.id_objeto = f.id_objeto_fk AND f.es_principal = true
+            WHERE o.id_catalogo_fk = $1;
         `;
-    const resultado = await pool.query(obtenerObjetosQuery, [id_catalogo]);
-    res.status(200).json(resultado.rows);
-  } catch (err) {
-    console.error("--- ERROR DETALLADO AL OBTENER OBJETOS ---", err);
-    res.status(500).send("Error en el servidor al obtener los objetos");
-  }
+
+        const resultado = await pool.query(obtenerObjetosQuery, [id_catalogo]);
+        
+        res.status(200).json(resultado.rows);
+
+    } catch (err) {
+        console.error("--- ERROR DETALLADO AL OBTENER OBJETOS ---", err);
+        console.error(err);
+        res.status(500).send("Error en el servidor al obtener los objetos");
+    }
 });
 
 app.put('/api/objetos/:id_objeto', async (req, res) => {
-  // ... (código existente) ...
   try {
     const { id_objeto } = req.params;
     const { nombre, tipo, anio, precio, estado, notas, id_catalogo_fk } = req.body;
@@ -216,7 +243,6 @@ app.put('/api/objetos/:id_objeto', async (req, res) => {
 });
 
 app.delete('/api/objetos/:id_objeto', async (req, res) => {
-  // ... (código existente) ...
   try {
     const { id_objeto } = req.params;
     const eliminarFotosQuery = "DELETE FROM fotos WHERE id_objeto_fk = $1";
@@ -238,7 +264,20 @@ app.delete('/api/objetos/:id_objeto', async (req, res) => {
 });
 
 
-// 8. --- Iniciar el servidor SOLO si la conexión a la BD es exitosa ---
+// 8. RUTA DE API PARA SUBIR FOTOS
+app.post('/api/upload', upload.single('foto'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).send('No se subió ningún archivo.');
+  }
+  const fileUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+  res.status(201).json({
+    message: "Archivo subido exitosamente",
+    url: fileUrl 
+  });
+});
+
+
+// 9. --- Iniciar el servidor SOLO si la conexión a la BD es exitosa ---
 async function startServer() {
   if (await testDbConnection()) {
     app.listen(PORT, () => {
@@ -250,4 +289,3 @@ async function startServer() {
 }
 
 startServer();
-

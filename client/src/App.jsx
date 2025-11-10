@@ -4,6 +4,7 @@ import './App.css'
 import LoginPage from './components/LoginPage.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import CatalogoDetailPage from './components/CatalogoDetailPage.jsx'
+import RegistroPage from './components/RegistroPage.jsx'
 
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         {/* cualquier ruta desconocida redirige al login */}
         <Route path="/catalogo/:idCatalogo" element={<CatalogoDetailPage />} />
+        <Route path="/registro" element={<RegistroPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
