@@ -41,6 +41,8 @@ const styles = {
   formContainer: { marginTop: '20px', padding: '16px', border: '1px solid #eee', borderRadius: '6px', backgroundColor: '#f9f9f9' },
   formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
   formInput: { padding: '8px', fontSize: '14px', borderRadius: '4px', border: '1px solid #ccc', width: '95%' },
+  // --- ¡NUEVO! Estilo para el input de foto ---
+  formInputFile: { gridColumn: '1 / 3', fontSize: '14px' },
   formTextArea: { padding: '8px', fontSize: '14px', borderRadius: '4px', border: '1px solid #ccc', width: '95%', gridColumn: '1 / 3' },
   formButton: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', gridColumn: '1 / 3' },
   cancelButton: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', gridColumn: '1 / 3', marginTop: '5px' },
@@ -58,8 +60,11 @@ export default function CatalogoDetailPage() {
     nombre: '', tipo: '', anio: '', precio: '', estado: '', notas: ''
   });
   const [formError, setFormError] = useState('');
+  
+  // --- ¡NUEVO! Estado para guardar el archivo de la foto ---
+  const [fotoArchivo, setFotoArchivo] = useState(null);
 
-  // Cargar los objetos (ahora traerá la foto_url)
+  // Cargar los objetos (ahora trae la foto_url)
   const fetchObjetos = useCallback(async () => {
     try {
       setLoading(true);
@@ -77,13 +82,18 @@ export default function CatalogoDetailPage() {
     fetchObjetos();
   }, [fetchObjetos]);
 
-  // Manejador para los inputs del formulario
+  // Manejador para los inputs de texto
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
+  };
+  
+  // --- ¡NUEVO! Manejador para el input de la foto ---
+  const handleFotoChange = (e) => {
+    setFotoArchivo(e.target.files[0]); // Guardamos el primer archivo que el usuario seleccione
   };
 
   // Función para empezar a editar
@@ -97,6 +107,7 @@ export default function CatalogoDetailPage() {
         estado: objeto.estado || '',
         notas: objeto.notas || ''
     });
+    setFotoArchivo(null); // Limpiamos el selector de foto al empezar a editar
     window.scrollTo(0, 0); 
   };
 
@@ -104,10 +115,11 @@ export default function CatalogoDetailPage() {
   const handleCancelEdit = () => {
     setEditingObjeto(null); 
     setFormData({ nombre: '', tipo: '', anio: '', precio: '', estado: '', notas: '' }); 
+    setFotoArchivo(null);
     setFormError('');
   };
 
-  // Función para CREAR y MODIFICAR
+  // --- ¡MODIFICADO! Esta función ahora sube la foto primero ---
   const handleSubmitObjeto = async (e) => {
     e.preventDefault();
     setFormError('');
@@ -116,31 +128,56 @@ export default function CatalogoDetailPage() {
       return;
     }
 
-    // ¡AQUÍ ES DONDE NECESITAMOS AÑADIR LA LÓGICA DE SUBIDA DE FOTOS!
-    // Por ahora, lo dejamos pendiente y solo guardamos los datos de texto
-    // (En el próximo paso, aquí llamaremos a /api/upload primero)
-
-    const objetoData = {
-      nombre: formData.nombre,
-      tipo: formData.tipo || null,
-      anio: formData.anio ? parseInt(formData.anio) : null,
-      precio: formData.precio ? parseFloat(formData.precio) : null,
-      estado: formData.estado || null,
-      notas: formData.notas || null,
-      id_catalogo_fk: parseInt(idCatalogo)
-    };
+    let fotoUrlParaGuardar = null;
 
     try {
+      // --- PASO A: Subir la foto (si hay una) ---
+      if (fotoArchivo) {
+        console.log("Subiendo foto...");
+        const formDataFoto = new FormData();
+        formDataFoto.append('foto', fotoArchivo); // 'foto' debe coincidir con upload.single('foto') en el backend
+
+        const resFoto = await axios.post('http://localhost:5000/api/upload', formDataFoto, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        fotoUrlParaGuardar = resFoto.data.url; // Guardamos la URL que nos devolvió el backend
+        console.log("Foto subida exitosamente:", fotoUrlParaGuardar);
+      }
+
+      // --- PASO B: Guardar los datos del objeto (incluida la URL de la foto) ---
+      
+      // Si estamos editando y no subimos una foto nueva, usamos la que ya tenía
+      if (editingObjeto && !fotoUrlParaGuardar) {
+        fotoUrlParaGuardar = editingObjeto.foto_url;
+      }
+      
+      const objetoData = {
+        nombre: formData.nombre,
+        tipo: formData.tipo || null,
+        anio: formData.anio ? parseInt(formData.anio) : null,
+        precio: formData.precio ? parseFloat(formData.precio) : null,
+        estado: formData.estado || null,
+        notas: formData.notas || null,
+        id_catalogo_fk: parseInt(idCatalogo),
+        fotoUrl: fotoUrlParaGuardar // <-- ¡Enviamos la URL al backend!
+      };
+
       if (editingObjeto) {
         // --- Lógica de MODIFICAR (PUT) ---
+        // (Nota: nuestra API PUT actual no actualiza la foto, solo el texto.
+        // Lo dejamos así por simplicidad por ahora)
         await axios.put(`http://localhost:5000/api/objetos/${editingObjeto.id_objeto}`, objetoData);
       } else {
         // --- Lógica de CREAR (POST) ---
-        // (Deberíamos modificar esto para que también envíe la fotoUrl)
         await axios.post('http://localhost:5000/api/objetos', objetoData);
       }
-      handleCancelEdit(); 
-      fetchObjetos(); 
+
+      // ¡Éxito!
+      handleCancelEdit(); // Limpiamos el formulario
+      fetchObjetos(); // Recargamos la lista de objetos
+
     } catch (error) {
       console.error("Error al guardar el objeto:", error);
       setFormError('No se pudo guardar el objeto. Inténtalo de nuevo.');
@@ -170,11 +207,10 @@ export default function CatalogoDetailPage() {
 
       <main style={styles.main}>
         
-        {/* --- Formulario de Crear/Modificar (pronto le añadiremos el input de foto) --- */}
+        {/* --- ¡MODIFICADO! El formulario ahora tiene campo de foto --- */}
         <section style={styles.formContainer}>
           <h3>{editingObjeto ? 'Modificar Objeto' : 'Agregar Nuevo Objeto'}</h3>
           <form onSubmit={handleSubmitObjeto}>
-            {/* ... (el mismo formulario de antes) ... */}
             <div style={styles.formGrid}>
               <input type="text" name="nombre" placeholder="Nombre del objeto *" style={styles.formInput} value={formData.nombre} onChange={handleFormChange} required />
               <input type="text" name="tipo" placeholder="Tipo (ej: Moneda)" style={styles.formInput} value={formData.tipo} onChange={handleFormChange} />
@@ -182,9 +218,22 @@ export default function CatalogoDetailPage() {
               <input type="number" step="0.01" name="precio" placeholder="Precio (ej: 5.50)" style={styles.formInput} value={formData.precio} onChange={handleFormChange} />
               <input type="text" name="estado" placeholder="Estado (ej: Bueno)" style={styles.formInput} value={formData.estado} onChange={handleFormChange} />
             </div>
+            
             <textarea name="notas" placeholder="Notas adicionales..." rows="3" style={{...styles.formTextArea, marginTop: '10px'}} value={formData.notas} onChange={handleFormChange} />
             
-            {/* --- PRÓXIMO PASO: Añadir <input type="file" /> aquí --- */}
+            {/* --- ¡NUEVO! Campo para subir la foto --- */}
+            {/* (Solo lo mostramos al crear, para simplificar. La edición de foto es más compleja) */}
+            {!editingObjeto && (
+              <div style={{marginTop: '10px'}}>
+                <label style={{fontSize: '14px', display: 'block', marginBottom: '5px'}}>Foto Principal</label>
+                <input 
+                  type="file" 
+                  name="foto" 
+                  onChange={handleFotoChange} 
+                  style={styles.formInputFile}
+                />
+              </div>
+            )}
 
             <button type="submit" style={{...styles.formButton, marginTop: '10px'}}>
               {editingObjeto ? 'Guardar Cambios' : 'Agregar Objeto'}
@@ -209,7 +258,6 @@ export default function CatalogoDetailPage() {
                 objetos.map(objeto => (
                   <li key={objeto.id_objeto} style={styles.objetoItem}>
                     
-                    {/* --- ¡NUEVO! Mostrar la imagen --- */}
                     {objeto.foto_url ? (
                       <img src={objeto.foto_url} alt={objeto.nombre} style={styles.itemImage} />
                     ) : (
